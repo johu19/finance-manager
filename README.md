@@ -7,6 +7,8 @@ The current API supports:
 - `GET /health`
 - `GET /me/profile`
 - `PATCH /me/profile`
+- `PUT /me/profile/photo`
+- `DELETE /me/profile/photo`
 - `POST /performances`
 - `GET /performances`
 - `PATCH /performances/:performanceId`
@@ -39,6 +41,8 @@ Lambda entrypoints. These files stay intentionally thin and delegate almost ever
 - `health.ts`: checks DynamoDB connectivity
 - `get-profile.ts`: fetches the authenticated swimmer profile or creates a minimal one
 - `patch-profile.ts`: updates profile fields for the authenticated swimmer
+- `put-photo.ts`: uploads/replaces the authenticated swimmer's profile photo
+- `delete-photo.ts`: removes the authenticated swimmer's profile photo
 - `create-performance.ts`: stores a performance for the authenticated swimmer
 - `get-performances.ts`: lists performances for the authenticated swimmer
 - `patch-performance.ts`: updates a performance for the authenticated swimmer
@@ -51,6 +55,7 @@ Shared infrastructure code used by multiple handlers.
 - `auth.ts`: extracts Cognito-style JWT claims from the API Gateway event
 - `lambda-runner.ts`: shared request wrapper for auth, parsing, validation, logging, and error mapping
 - `dynamo.ts`: creates the DynamoDB client and exposes a health check helper
+- `s3.ts`: creates the S3 client and exposes profile-photo object + URL helpers
 - `env.ts`: reads required environment variables
 - `http.ts`: small JSON response helper
 - `error-handler.ts`: central app error type and HTTP error serialization
@@ -60,6 +65,7 @@ Shared infrastructure code used by multiple handlers.
 Business logic and orchestration.
 
 - `profile-service.ts`: gets, creates, and updates swimmer profiles
+- `photo-service.ts`: validates, uploads to S3, and deletes swimmer profile photos
 - `performance-service.ts`: creates, fetches, updates, and deletes swimmer performance records
 
 #### `src/repositories/`
@@ -74,6 +80,7 @@ Low-level DynamoDB access using the AWS SDK v3.
 Zod schemas for request payload validation.
 
 - `patch-profile.ts`
+- `put-photo.ts`
 - `create-performance.ts`
 - `patch-performance.ts`
 - `performance-path.ts`
@@ -118,6 +125,7 @@ Profile records may also store these optional fields after the user updates them
 - `gender`
 - `favStroke`
 - `teamName`
+- `photoUrl` (set by `PUT /me/profile/photo`, cleared by `DELETE /me/profile/photo`)
 
 Performance item shape:
 
@@ -158,10 +166,11 @@ Locally, these claims are provided by JSON fixtures in `scripts/lambda/fixtures/
 The CDK app in `infra/` defines a development stack that provisions:
 
 - one DynamoDB table
+- one S3 bucket for profile photos (objects under `photos/` are public-read)
 - one Cognito User Pool
 - one Cognito User Pool Client
 - one API Gateway HTTP API
-- seven Lambda functions
+- nine Lambda functions
 
 The protected routes are wired to a JWT authorizer backed by Cognito. The stack also outputs the API endpoint and Cognito identifiers needed by a client application.
 
@@ -215,6 +224,19 @@ DYNAMODB_ENDPOINT=http://localhost:8000
 SWIM_CORE_TABLE_NAME=swim-core
 ```
 
+The profile-photo handlers additionally use:
+
+```bash
+PHOTOS_BUCKET_NAME=swim-core-dev-photos
+# Optional: point the S3 client at a local emulator (e.g. LocalStack/MinIO)
+S3_ENDPOINT=http://localhost:4566
+```
+
+`PHOTOS_BUCKET_NAME` is only required by `put-photo` and `delete-photo`. The CDK
+stack wires it automatically for those functions. There is no local S3 in the
+Docker setup, so invoking the photo handlers locally requires either real AWS
+credentials or a local S3 emulator via `S3_ENDPOINT`.
+
 For local DynamoDB usage, the AWS SDK client also assumes local credentials internally when `DYNAMODB_ENDPOINT` is set, so no real AWS credentials are required for the app to talk to DynamoDB Local.
 
 Local helper scripts such as `npm run create:table:swim-core` and `npm run dev:invoke -- <lambda-name>` automatically load variables from the root `.env` file.
@@ -256,6 +278,8 @@ Supported commands:
 npm run dev:invoke -- health
 npm run dev:invoke -- get-profile
 npm run dev:invoke -- patch-profile
+npm run dev:invoke -- put-photo
+npm run dev:invoke -- delete-photo
 npm run dev:invoke -- create-performance
 npm run dev:invoke -- get-performances
 npm run dev:invoke -- patch-performance
@@ -322,3 +346,5 @@ For day-to-day backend work, the simplest loop is:
 - `GET /me/profile` creates a minimal profile automatically when one does not yet exist.
 - `PATCH /me/profile` updates an existing profile and returns `404` if the profile has not been created yet.
 - `PATCH /performances/:performanceId` and `DELETE /performances/:performanceId` both return `404` when the performance does not exist for the authenticated user.
+- `PUT /me/profile/photo` accepts a JSON body `{ "image": "<base64>", "contentType": "image/jpeg | image/png | image/webp" }`. The client is expected to compress the image before sending; the handler rejects payloads larger than 2 MB after decoding. It stores the object at `photos/<cognitoId>` and returns the profile with a `photoUrl` that carries a `?v=<timestamp>` cache-buster.
+- `PUT /me/profile/photo` and `DELETE /me/profile/photo` return `404` when the profile has not been created yet (create it first via `GET /me/profile`). `DELETE` returns `204`.
