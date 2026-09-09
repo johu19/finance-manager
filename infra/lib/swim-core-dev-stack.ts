@@ -19,8 +19,10 @@ import {
   UserPool,
   UserPoolClient,
 } from 'aws-cdk-lib/aws-cognito';
+import { AnyPrincipal, PolicyStatement } from 'aws-cdk-lib/aws-iam';
 import { Runtime } from 'aws-cdk-lib/aws-lambda';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
+import { BlockPublicAccess, Bucket } from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
 
 export class SwimCoreDevStack extends Stack {
@@ -47,6 +49,24 @@ export class SwimCoreDevStack extends Stack {
       },
       billingMode: BillingMode.PAY_PER_REQUEST,
     });
+
+    const photosBucket = new Bucket(this, 'SwimCorePhotosBucket', {
+      bucketName: 'swim-core-dev-photos',
+      blockPublicAccess: new BlockPublicAccess({
+        blockPublicAcls: true,
+        ignorePublicAcls: true,
+        blockPublicPolicy: false,
+        restrictPublicBuckets: false,
+      }),
+    });
+
+    photosBucket.addToResourcePolicy(
+      new PolicyStatement({
+        actions: ['s3:GetObject'],
+        resources: [photosBucket.arnForObjects('photos/*')],
+        principals: [new AnyPrincipal()],
+      }),
+    );
 
     const userPool = new UserPool(this, 'SwimCoreUserPool', {
       userPoolName: 'swim-core-dev-users',
@@ -128,6 +148,22 @@ export class SwimCoreDevStack extends Stack {
       'swim-core-dev-get-performances',
       'get-performances',
     );
+    const putPhotoLambda = createLambda(
+      'PutPhotoLambda',
+      'swim-core-dev-put-photo',
+      'put-photo',
+    );
+    const deletePhotoLambda = createLambda(
+      'DeletePhotoLambda',
+      'swim-core-dev-delete-photo',
+      'delete-photo',
+    );
+
+    putPhotoLambda.addEnvironment('PHOTOS_BUCKET_NAME', photosBucket.bucketName);
+    deletePhotoLambda.addEnvironment(
+      'PHOTOS_BUCKET_NAME',
+      photosBucket.bucketName,
+    );
 
     table.grantReadData(healthLambda);
     table.grantReadWriteData(getProfileLambda);
@@ -136,6 +172,11 @@ export class SwimCoreDevStack extends Stack {
     table.grantReadWriteData(patchPerformanceLambda);
     table.grantReadWriteData(deletePerformanceLambda);
     table.grantReadData(getPerformancesLambda);
+    table.grantReadWriteData(putPhotoLambda);
+    table.grantReadWriteData(deletePhotoLambda);
+
+    photosBucket.grantPut(putPhotoLambda, 'photos/*');
+    photosBucket.grantDelete(deletePhotoLambda, 'photos/*');
 
     const api = new HttpApi(this, 'SwimCoreApi', {
       apiName: 'swim-core-dev-api',
@@ -145,6 +186,7 @@ export class SwimCoreDevStack extends Stack {
         allowMethods: [
           CorsHttpMethod.GET,
           CorsHttpMethod.POST,
+          CorsHttpMethod.PUT,
           CorsHttpMethod.PATCH,
           CorsHttpMethod.DELETE,
           CorsHttpMethod.OPTIONS,
@@ -177,6 +219,26 @@ export class SwimCoreDevStack extends Stack {
       integration: new HttpLambdaIntegration(
         'PatchProfileLambdaIntegration',
         patchProfileLambda,
+      ),
+      authorizer: jwtAuthorizer,
+    });
+
+    api.addRoutes({
+      path: '/me/profile/photo',
+      methods: [HttpMethod.PUT],
+      integration: new HttpLambdaIntegration(
+        'PutPhotoLambdaIntegration',
+        putPhotoLambda,
+      ),
+      authorizer: jwtAuthorizer,
+    });
+
+    api.addRoutes({
+      path: '/me/profile/photo',
+      methods: [HttpMethod.DELETE],
+      integration: new HttpLambdaIntegration(
+        'DeletePhotoLambdaIntegration',
+        deletePhotoLambda,
       ),
       authorizer: jwtAuthorizer,
     });
@@ -227,6 +289,10 @@ export class SwimCoreDevStack extends Stack {
 
     new CfnOutput(this, 'SwimCoreTableName', {
       value: table.tableName,
+    });
+
+    new CfnOutput(this, 'PhotosBucketName', {
+      value: photosBucket.bucketName,
     });
 
     new CfnOutput(this, 'UserPoolId', {

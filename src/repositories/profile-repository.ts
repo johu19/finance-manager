@@ -12,6 +12,7 @@ export type ProfileRecord = {
   gender?: 'male' | 'female';
   favStroke?: PerformanceStroke;
   teamName?: string;
+  photoUrl?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -38,6 +39,7 @@ function mapItemToProfileRecord(
   const gender = item.gender?.S;
   const favStroke = item.favStroke?.S;
   const teamName = item.teamName?.S;
+  const photoUrl = item.photoUrl?.S;
   const createdAt = item.createdAt?.S;
   const updatedAt = item.updatedAt?.S;
 
@@ -71,6 +73,7 @@ function mapItemToProfileRecord(
     gender: gender as ProfileRecord['gender'],
     favStroke: favStroke as ProfileRecord['favStroke'],
     teamName,
+    photoUrl,
     createdAt,
     updatedAt,
   };
@@ -88,6 +91,7 @@ function mapProfileRecordToItem(profile: ProfileRecord) {
     ...(profile.gender ? { gender: { S: profile.gender } } : {}),
     ...(profile.favStroke ? { favStroke: { S: profile.favStroke } } : {}),
     ...(profile.teamName ? { teamName: { S: profile.teamName } } : {}),
+    ...(profile.photoUrl ? { photoUrl: { S: profile.photoUrl } } : {}),
     createdAt: { S: profile.createdAt },
     updatedAt: { S: profile.updatedAt },
   };

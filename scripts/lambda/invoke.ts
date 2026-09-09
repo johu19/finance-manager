@@ -14,7 +14,9 @@ type SupportedLambdaName =
   | 'create-performance'
   | 'patch-performance'
   | 'delete-performance'
-  | 'get-performances';
+  | 'get-performances'
+  | 'put-photo'
+  | 'delete-photo';
 
 type InvokeRequestFixture = {
   method?: string;
@@ -121,6 +123,32 @@ const REGISTRY: Record<SupportedLambdaName, LambdaRegistration> = {
     ),
     loadHandler: async () =>
       (await import('../../src/functions/get-performances.js')).handler,
+  },
+  'put-photo': {
+    defaultMethod: 'PUT',
+    defaultPath: '/me/profile/photo',
+    implemented: true,
+    requestFixturePath: resolve(
+      process.cwd(),
+      'scripts/lambda/fixtures/requests/put-photo.json',
+    ),
+    bodyFixturePath: resolve(
+      process.cwd(),
+      'scripts/lambda/fixtures/bodies/put-photo.json',
+    ),
+    loadHandler: async () =>
+      (await import('../../src/functions/put-photo.js')).handler,
+  },
+  'delete-photo': {
+    defaultMethod: 'DELETE',
+    defaultPath: '/me/profile/photo',
+    implemented: true,
+    requestFixturePath: resolve(
+      process.cwd(),
+      'scripts/lambda/fixtures/requests/delete-photo.json',
+    ),
+    loadHandler: async () =>
+      (await import('../../src/functions/delete-photo.js')).handler,
   },
 };
 

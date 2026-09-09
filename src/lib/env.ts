@@ -1,12 +1,16 @@
 type EnvKey =
   | 'AWS_REGION'
   | 'DYNAMODB_ENDPOINT'
-  | 'SWIM_CORE_TABLE_NAME';
+  | 'SWIM_CORE_TABLE_NAME'
+  | 'PHOTOS_BUCKET_NAME'
+  | 'S3_ENDPOINT';
 
 type AppConfig = {
   awsRegion: string;
   dynamoDbEndpoint?: string;
   swimCoreTableName: string;
+  photosBucketName?: string;
+  s3Endpoint?: string;
 };
 
 function getEnv(name: EnvKey) {
@@ -28,5 +32,7 @@ export function getConfig(): AppConfig {
     awsRegion: requireEnv('AWS_REGION'),
     dynamoDbEndpoint: getEnv('DYNAMODB_ENDPOINT'),
     swimCoreTableName: requireEnv('SWIM_CORE_TABLE_NAME'),
+    photosBucketName: getEnv('PHOTOS_BUCKET_NAME'),
+    s3Endpoint: getEnv('S3_ENDPOINT'),
   };
 }

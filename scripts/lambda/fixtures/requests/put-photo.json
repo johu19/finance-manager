@@ -1,0 +1,12 @@
+{
+  "method": "PUT",
+  "path": "/me/profile/photo",
+  "headers": {
+    "content-type": "application/json"
+  },
+  "queryStringParameters": {},
+  "claims": {
+    "sub": "cognito-id-local-swimmer-test",
+    "email": "jagn1997@hotmail.com"
+  }
+}
