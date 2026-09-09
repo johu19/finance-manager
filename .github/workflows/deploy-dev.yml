@@ -45,7 +45,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::179540755677:role/swim-core-dev-deploy
+          role-to-assume: arn:aws:iam::179540755677:role/github-actions-swim-core-backend-dev-deploy
           aws-region: us-east-1
 
       - name: Deploy dev stack
